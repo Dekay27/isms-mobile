@@ -7,34 +7,45 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      vars:
-        PROJECT_DIR: isms_mobile
 
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
-        - $CM_BUILD_DIR/$PROJECT_DIR/ios/Pods
+        - $CM_BUILD_DIR/ios/Pods
+        - $CM_BUILD_DIR/isms_mobile/ios/Pods
 
     scripts:
+      - name: Resolve project directory
+        script: |
+          if [ -f "$CM_BUILD_DIR/pubspec.yaml" ]; then
+            echo "PROJECT_DIR=$CM_BUILD_DIR" >> "$CM_ENV"
+          elif [ -f "$CM_BUILD_DIR/isms_mobile/pubspec.yaml" ]; then
+            echo "PROJECT_DIR=$CM_BUILD_DIR/isms_mobile" >> "$CM_ENV"
+          else
+            echo "Could not find Flutter project root (pubspec.yaml)." >&2
+            ls -la "$CM_BUILD_DIR"
+            exit 1
+          fi
+
       - name: Flutter dependencies
         script: |
-          cd "$CM_BUILD_DIR/$PROJECT_DIR"
+          cd "$PROJECT_DIR"
           flutter --version
           flutter pub get
 
       - name: CocoaPods install
         script: |
-          cd "$CM_BUILD_DIR/$PROJECT_DIR/ios"
+          cd "$PROJECT_DIR/ios"
           pod install --repo-update
 
       - name: Build iOS app (no signing)
         script: |
-          cd "$CM_BUILD_DIR/$PROJECT_DIR"
+          cd "$PROJECT_DIR"
           flutter build ios --release --no-codesign
 
       - name: Package unsigned IPA for AltStore
         script: |
-          cd "$CM_BUILD_DIR/$PROJECT_DIR"
+          cd "$PROJECT_DIR"
           rm -rf build/ios/ipa
           mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
@@ -42,6 +53,9 @@ workflows:
           /usr/bin/zip -r Runner-unsigned-altstore.ipa Payload
 
     artifacts:
-      - $CM_BUILD_DIR/$PROJECT_DIR/build/ios/ipa/Runner-unsigned-altstore.ipa
-      - $CM_BUILD_DIR/$PROJECT_DIR/build/ios/iphoneos/Runner.app
-      - $CM_BUILD_DIR/$PROJECT_DIR/build/ios/iphoneos/*.dSYM
+      - build/ios/ipa/Runner-unsigned-altstore.ipa
+      - build/ios/iphoneos/Runner.app
+      - build/ios/iphoneos/*.dSYM
+      - isms_mobile/build/ios/ipa/Runner-unsigned-altstore.ipa
+      - isms_mobile/build/ios/iphoneos/Runner.app
+      - isms_mobile/build/ios/iphoneos/*.dSYM
